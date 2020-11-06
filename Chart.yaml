@@ -1,0 +1,9 @@
+apiVersion: v2
+name: elastalert
+description: A Helm chart to deploy ElastAlert
+
+type: application
+# Template Version
+version: 1.0.0
+# ElastAlert app Version
+appVersion: 0.2.4

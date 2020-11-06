@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "elastalert.fullname" . }}
+  labels:
+    {{- include "elastalert.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "elastalert.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        timestamp: "{{ .Values.timestamp }}"
+        {{- include "elastalert.selectorLabels" . | nindent 8 }}
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /opt/elastalert/config
+              name: elastalert-config
+              readOnly: true
+            {{- if .Values.use_smtp_credentials }}
+            - mountPath: /opt/elastalert/config/smtp_auth
+              name: elastalert-smtp-credentials
+              readOnly: true
+            {{- end }}
+            - mountPath: /etc/curator/keys
+              name: admin-ca
+              readOnly: true
+            - mountPath: /opt/elastalert/rules
+              name: elastalert-rules
+              readOnly: true
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: {{ include "elastalert.fullname" . }}-config-cm
+          name: elastalert-config
+        {{- if .Values.use_smtp_credentials }}
+        - secret:
+            defaultMode: 420
+            secretName: {{ include "elastalert.fullname" . }}-smtpcredentials-secret
+          name: elastalert-smtp-credentials
+        {{- end }}
+        - secret:
+            defaultMode: 420
+            secretName: {{ .Values.admin_ca_secret }}
+          name: admin-ca
+        - configMap:
+            defaultMode: 420
+            name: {{ include "elastalert.fullname" . }}-rules-cm
+          name: elastalert-rules

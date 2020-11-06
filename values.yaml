@@ -1,0 +1,481 @@
+# Default values for ElastAlert
+# This is a YAML-formatted file.
+
+image:
+  repository: ADJUST_ME/elastalert-base-image
+  tag: 1.0.0
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+# - name: pull-secret
+nameOverride: ""
+fullnameOverride: ""
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  requests:
+    cpu: 250m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Admin CA with DELETE permissions
+admin_ca_secret: elasticsearch
+
+use_smtp_credentials: false
+elast_smtp_credentials:
+  # SMTP Credentials
+  smtp_auth.yaml: |-
+    user: "SMTP_USER"
+    password: "SMTP_PASSWORD"
+
+# ElastAlert Config to the ConfigMap
+elast_config:
+  config.yaml: |-
+    # This is the folder that contains the rule yaml files
+    # Any .yaml file will be loaded as a rule
+    rules_folder: rules
+    scan_subdirectories: false
+
+    # How often ElastAlert will query elasticsearch
+    # The unit can be anything from weeks to seconds
+    run_every:
+      minutes: 1
+
+    # ElastAlert will buffer results from the most recent
+    # period of time, in case some log sources are not in real time
+    buffer_time:
+      minutes: 15
+
+    # The elasticsearch service for metadata writeback
+    # Note that every rule can have it's own elasticsearch host
+    es_host: elasticsearch
+
+    # The elasticsearch port
+    es_port: 9200
+
+    # The index on es_host which is used for metadata storage
+    # This can be a unmapped index, but it is recommended that you run
+    # elastalert-create-index to set a mapping
+    writeback_index: elastalert_status
+
+    # If an alert fails for some reason, ElastAlert will retry
+    # sending the alert until this time period has elapsed
+    alert_time_limit:
+      days: 2
+
+    use_ssl: True
+    verify_certs: True
+
+    # The secrets from the curator must be mounted!
+    ca_certs: /etc/curator/keys/admin-ca
+    client_cert: /etc/curator/keys/admin-cert
+    client_key: /etc/curator/keys/admin-key
+
+    # SMTP settings
+    smtp_host: "ADJUST_ME.example.com"
+    # smtp_ssl: true
+    smtp_port: 25
+    from_addr: "ADJUST_ME@example.com"
+    # a list of email addresses to send alerts to
+    email:
+    - "email1@ADJUST_ME.example.com"
+    - "email2@ADJUST_ME.example.com"
+
+    # Uncomment this line to use credential with the SMTP server
+    #smtp_auth_file: "/opt/elastalert/config/smtp_auth/smtp_auth.yaml"
+
+elast_rules:
+  NodeNotReady.yaml: |-
+    # Rule name, must be unique (Required)
+    name: Node_Not_Ready
+
+    # Type of alert (Required)
+    # the frequency rule type alerts when num_events events occur with timeframe time
+    type: frequency
+
+    # Index to search, wildcard supported (Required)
+    index: .operations*
+    use_strftime_index: true
+
+    # (Required, frequency specific)
+    # Alert when this many documents matching the query occur within a timeframe
+    num_events: 1
+
+    # (Required, frequency specific)
+    # num_events must occur within this amount of time to trigger an alert
+    timeframe:
+      minutes: 15
+
+    # A list of Elasticsearch filters used for find events (Required)
+    # These filters are joined with AND and nested in a filtered query
+    # For more info: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl.html
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason:NodeNotReady AND kubernetes.event.involvedObject.kind: Node'
+
+    # The alert is use when a match is found (Required)
+    alert:
+    - "email"
+
+  NodeNotSchedulable.yaml: |-
+    name: Node_Not_Schedulable
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason:NodeNotSchedulable AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  NodeAllocatableEnforced.yaml: |-
+    name: Node_Allocatable_Enforced
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason:NodeAllocatableEnforced AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  NodeCurrentRevisionChanged.yaml: |-
+    name: Node_Current_Revision_Changed
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: NodeCurrentRevisionChanged AND message: "Updated node*"'
+
+    alert:
+    - "email"
+
+  RemovingNode.yaml: |-
+    name: Removing_Node
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason:"RemovingNode" AND kubernetes.event.involvedObject.kind:"Node"'
+
+    alert:
+    - "email"
+
+  DeletingNode.yaml: |-
+    name: Deleting_Node
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason:"DeletingNode" AND kubernetes.event.involvedObject.kind:"Node"'
+
+    alert:
+    - "email"
+
+  NodeRebooted.yaml: |-
+    name: Node_Rebooted
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 30
+
+    filter:
+    - query_string:
+        query: 'message: "Node" AND message: "has been rebooted" AND kubernetes.event.reason: Rebooted'
+
+    alert:
+    - "email"
+
+  NodeOutofDiskSpace.yaml: |-
+    name: Node_Out_of_Disk_Space
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason:NodeOutofDiskSpace AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  NodeRegistered.yaml: |-
+    name: Node_Registered
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason:NodeRegistered AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  SourceImageRejected.yaml: |-
+    name: Source_Image_Rejected
+    type: frequency
+    index: .all
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'message: "Source image rejected" AND message: "is rejected by policy" AND kubernetes.event.involvedObject.kind: "Pod"'
+
+    alert:
+    - "email"
+
+  ImageGCFailed.yaml: |-
+    name: Image_GarbageCollector_Failed
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: ImageGCFailed AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  KubeletSetupFailed.yaml: |-
+    name: Kubelet_Setup_Failed
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: KubeletSetupFailed AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  TerminatingEvictedPod.yaml: |-
+    name: Terminating_Evicted_Pod
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: TerminatingEvictedPod AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  VolumeMountFailed.yaml: |-
+    name: Volume_Mount_Failed
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 3
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: FailedMount AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  NodeSelectorMismatch.yaml: |-
+    name: Node_Selector_Mismatch
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: NodeSelectorMismatching AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  InsufficientFreeCPU.yaml: |-
+    name: Insufficient_Free_CPU
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: InsufficientFreeCPU AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  InsufficientFreeMemory.yaml: |-
+    name: Insufficient_Free_Memory
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: InsufficientFreeMemory AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  InvalidDiskCapacity.yaml: |-
+    name: Invalid_Disk_Capacity
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: InvalidDiskCapacity AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  FreeDiskSpaceFailed.yaml: |-
+    name: Free_Disk_Space_Failed
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: FreeDiskSpaceFailed AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  FreeDiskSpaceFailed.yaml: |-
+    name: Free_Disk_Space_Failed
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: FreeDiskSpaceFailed AND kubernetes.event.involvedObject.kind: Node'
+
+    alert:
+    - "email"
+
+  ImageInspectFailed.yaml: |-
+    name: Image_Inspect_Failed
+    type: frequency
+    index: .operations*
+    use_strftime_index: true
+
+    num_events: 1
+    timeframe:
+      minutes: 15
+
+    filter:
+    - query_string:
+        query: 'kubernetes.event.reason: InspectFailed AND kubernetes.event.involvedObject.kind: Pod'
+
+    alert:
+    - "email"

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elastalert.fullname" . }}-rules-cm
+  labels:
+    {{- include "elastalert.labels" . | nindent 4 }}
+data:
+{{- range $key, $value := .Values.elast_rules }}
+{{ $key | indent 2}}: |-
+{{ $value | indent 4}}
+{{- end }}

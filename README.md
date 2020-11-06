@@ -1,8 +1,12 @@
-# ElastAlert-HelmChart
-Homemade HelmChart to deploy ElastAlert
+# ElastAlert Helm Chart
 
+Helm Chart realizado a medida para el despliegue de _ElastAlert_
 
+## Testado en/con
 
+- OpenShift 4.2.21
+- OpenShift 4.3.19
+- Helm 3.2.1
 
 ## LICENSE
 ![License Logo](./img/license/CC4-by-sa.png)
